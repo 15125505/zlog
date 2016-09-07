@@ -24,6 +24,7 @@ var LevelColor []string     // 颜色列表
 func init() {
 	// 缺省生成一个仅仅在控制台输出的日志模块
 	Log = NewLogger(true, false, false, "")
+	Log.callLevel ++;
 
 	// 颜色列表
 	LevelColor = []string{
@@ -43,6 +44,7 @@ type ZLogger struct {
 	f           *os.File     // 当前日志文件句柄
 	curFileName string       // 当前使用的文件明白
 	toWrite     chan LogNode // 需要写入文件的日志
+	callLevel   int          // 调用级别
 }
 
 // 创建一个日志模块（name示例："logs/myModuleName"）
@@ -53,6 +55,7 @@ type ZLogger struct {
 //                     如果fileName为空，表示日志不写入文件
 func NewLogger(console, fileWithColor, asynWrite bool, fileName string) (l *ZLogger) {
 	l = &ZLogger{
+		callLevel:2,
 		level:LevelInformational,
 		toWrite:make(chan LogNode, maxChanCount),
 	}
@@ -140,7 +143,7 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 	now := time.Now()
 
 	// 找出调用所在的文件和代码行
-	_, file, line, ok := runtime.Caller(2)
+	_, file, line, ok := runtime.Caller(l.callLevel)
 	if !ok {
 		file = "???"
 		line = 0
