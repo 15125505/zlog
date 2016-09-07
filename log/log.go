@@ -146,7 +146,7 @@ func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, w
 	// 如果文件没有打开，首先需要打开文件
 	if nil == *ppFile {
 		// 创建文件目录
-		err := os.MkdirAll(filepath.Dir(newFileName), 0600)
+		err := os.MkdirAll(filepath.Dir(newFileName), 0775)
 		if err != nil {
 			fmt.Println(err)
 		}
