@@ -152,7 +152,7 @@ func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, w
 		}
 
 		// 打开文件
-		f, err := os.OpenFile(newFileName, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0660)
+		f, err := os.OpenFile(newFileName, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0664)
 		if err != nil {
 			fmt.Println("创建日志文件失败！", newFileName)
 			return err
