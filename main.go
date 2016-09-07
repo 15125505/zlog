@@ -1,12 +1,24 @@
 package main
 
-import "zlog/log"
+import (
+	"zlog/log"
+	"time"
+)
 
 func main() {
 
+	log.Log.Config(true, true, true, "logs/abc")
+
+	now := time.Now()
+
 	// 用法示例
-	log.Debug("哈哈哈哈哈")
-	log.Info("hahahahhah")
-	log.Error("fdsjaklfdjsaklfd")
+	for i := 0; i < 600; i++ {
+		log.Debug(i, "哈哈哈哈哈")
+		log.Info(i, "hahahahhah")
+		log.Error(i, "fdsjaklfdjsaklfd")
+
+	}
+
+	log.Info(time.Since(now))
 
 }
