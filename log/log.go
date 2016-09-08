@@ -17,13 +17,13 @@ const (
 	LevelDebug
 )
 
-const maxChanCount = 1000   // 缓冲区最多存放1000条数据
+const maxChanCount = 10000   // 缓冲区最多存放10000条数据
 var LevelColor []string     // 颜色列表
 
 // 初始化函数
 func init() {
 	// 缺省生成一个仅仅在控制台输出的日志模块
-	Log = NewLogger(true, false, false, true, "")
+	Log = NewLogger()
 	Log.callLevel ++;
 
 	// 颜色列表
@@ -53,32 +53,61 @@ type ZLogger struct {
 	callLevel       int          // 调用级别
 }
 
-// 创建一个日志模块（name示例："logs/myModuleName"）
-// console          -- 是否允许控制台输出
-// fileWithColor    -- 输出到文件时是否需要带上控制台颜色标志（只有在允许写文件的时候有效）
-// asynWrite        -- ture表示异步写入文件，为false表示同步写入文件（只有在允许写文件的时候有效）
-// errFile          -- ture表示为错误日志额外写入一份文件（错误日志同时也会写入普通文件），文件名如"logs/mylog-err-20160906.log"
-// fileName         -- 日志文件名，如文件名设置为"logs/mylog"，生成的日志文件将如"logs/mylog-20160906.log"，
-//                     如果fileName为空，表示日志不写入文件
-func NewLogger(console, fileWithColor, asynWrite, errFile bool, fileName string) (l *ZLogger) {
+// 创建一个日志模块
+func NewLogger() (l *ZLogger) {
 	l = &ZLogger{
+		isAsynToFile:false,
+		isFileWithColor:false,
+		isConsoleOut:true,
+		isHaveErrFile:false,
 		callLevel:2,
 		level:LevelInformational,
 		toWrite:make(chan LogNode, maxChanCount),
 	}
-	l.Config(console, fileWithColor, asynWrite, errFile, fileName)
 	go l.run()
 	return
 }
 
-// 修改配置信息
-func (l *ZLogger)Config(console, fileWithColor, asynWrite, errFile bool, fileName string) {
-	l.prefix = fileName
-	l.isFileWithColor = fileWithColor
-	l.isAsynToFile = asynWrite
-	l.isHaveErrFile = errFile
-	l.isConsoleOut = console
+
+// 是否允许控制台输出（默认输出到控制台）
+func (l *ZLogger)SetConsoleOut(enable bool)  {
+	l.isConsoleOut = enable
 }
+
+// 是否允许文件中带颜色信息（默认文件输出不带颜色）
+func (l *ZLogger)SetFileColor(enable bool)  {
+	l.isFileWithColor = enable
+}
+
+// 配置写入日志文件的方式：同步还是异步(默认为同步)
+// 同步，意味着实时写入文件
+// 异步，则将日志加入缓冲区，由专门的协程写入文件
+// 异步的优点：可以瞬间输出更多的日志文件，而且不会阻塞调用者
+// 异步的缺点：如果软件crash掉，可能来不及将最后的几条日志写入文件
+// 异步的另外一个缺点，是如果输入日志比写入文件的速度快，那么缓冲区会上涨，上涨到满之后会丢日志
+func (l *ZLogger)SetWriteFileMode(isAsynToFile bool)  {
+	l.isAsynToFile = isAsynToFile
+}
+
+// 是否允许错误日志额外存一份文件（默认不单独存错误日志）
+// 注意：如果错误日志单独存储，那么每一条错误日志会存两份
+func (l *ZLogger)SetAdditionalErrorFile(has bool)  {
+	l.isHaveErrFile = has
+}
+
+// 日志文件名设置(默认为空)
+// 如果日志文件名为空，那么不会输出日志文件
+// 配置示例，如果用户如下配置：
+//  SetLogFile("logfiles/abc")
+// 那么生成的日志文件将如下所示：
+// logfiles/abc-2016-09-08.log
+// 如果有错误日志生成，将如下所示：
+// logfiles/abc-err-2016-09-08.log
+// 如果设定的文件所在目录不存在，日志模块会在输出日志的时候自动创建该目录
+func (l *ZLogger)SetLogFile(fileName string)  {
+	l.prefix = fileName
+}
+
 
 // 需要写入文件的节点
 type LogNode struct {
@@ -140,7 +169,7 @@ func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, w
 	newFileName := fmt.Sprintf("%v%v-%v.log", l.prefix, tag, when.Format("20060102"))
 	if newFileName != *fileName && *ppFile != nil {
 		(*ppFile).Close()
-		ppFile = nil
+		*ppFile = nil
 	}
 
 	// 如果文件没有打开，首先需要打开文件
