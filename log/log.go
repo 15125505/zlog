@@ -13,6 +13,7 @@ import (
 
 const (
 	LevelError = iota
+	LevelNotice
 	LevelInformational
 	LevelDebug
 )
@@ -29,6 +30,7 @@ func init() {
 	// 颜色列表
 	LevelColor = []string{
 		"\033[31m",
+		"\033[33m",
 		"\033[32m",
 		"\033[37m",
 	}
@@ -240,6 +242,12 @@ func (l *ZLogger)Error(v ...interface{}) {
 	l.msgOut(LevelError, msg)
 }
 
+// 提醒级别日志
+func (l *ZLogger)Notice(v ...interface{}) {
+	msg := fmt.Sprintf("[N] " + l.generateFmtStr(len(v)), v...)
+	l.msgOut(LevelNotice, msg)
+}
+
 // 信息级别日志
 func (l *ZLogger)Informational(v ...interface{}) {
 	msg := fmt.Sprintf("[I] " + l.generateFmtStr(len(v)), v...)
@@ -266,6 +274,11 @@ func Debug(v ...interface{}) {
 // 信息级别日志
 func Info(v ...interface{}) {
 	Log.Info(v ...)
+}
+
+// 提醒级别日志
+func Notice(v ...interface{}) {
+	Log.Notice(v ...)
 }
 
 // 错误级别日志
