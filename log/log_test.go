@@ -34,6 +34,7 @@ func TestMsgOut(t *testing.T) {
 func TestOut(t *testing.T) {
 	Log.SetLogFile("tmp/color")
 	Log.SetFileColor(true)
+	Log.SetFileDaily(false)
 	Debug("文件中有颜色的 debug")
 	Info("文件中有颜色的 info")
 	Notice("文件中有颜色的 notice")

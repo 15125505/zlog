@@ -25,7 +25,7 @@ var LevelColor []string     // 颜色列表
 func init() {
 	// 缺省生成一个仅仅在控制台输出的日志模块
 	Log = NewLogger()
-	Log.callLevel ++;
+	Log.SetCallLevel(3)
 
 	// 颜色列表
 	LevelColor = []string{
@@ -44,6 +44,7 @@ type ZLogger struct {
 	isFileWithColor bool         // 日志文件是否写入颜色信息
 	isConsoleOut    bool         // 日志是否输出到控制台
 	isHaveErrFile   bool         // 日志是否加入单独的错误日志文件
+	isFileDaily     bool         // 日志文件是否按日期命名
 
 	pFile           *os.File     // 当前日志文件句柄
 	fileName        string       // 当前使用的文件名
@@ -62,6 +63,7 @@ func NewLogger() (l *ZLogger) {
 		isFileWithColor:false,
 		isConsoleOut:true,
 		isHaveErrFile:false,
+		isFileDaily:true,
 		callLevel:2,
 		level:LevelInformational,
 		toWrite:make(chan LogNode, maxChanCount),
@@ -72,12 +74,12 @@ func NewLogger() (l *ZLogger) {
 
 
 // 是否允许控制台输出（默认输出到控制台）
-func (l *ZLogger)SetConsoleOut(enable bool)  {
+func (l *ZLogger)SetConsoleOut(enable bool) {
 	l.isConsoleOut = enable
 }
 
 // 是否允许文件中带颜色信息（默认文件输出不带颜色）
-func (l *ZLogger)SetFileColor(enable bool)  {
+func (l *ZLogger)SetFileColor(enable bool) {
 	l.isFileWithColor = enable
 }
 
@@ -87,13 +89,13 @@ func (l *ZLogger)SetFileColor(enable bool)  {
 // 异步的优点：可以瞬间输出更多的日志文件，而且不会阻塞调用者
 // 异步的缺点：如果软件crash掉，可能来不及将最后的几条日志写入文件
 // 异步的另外一个缺点，是如果输入日志比写入文件的速度快，那么缓冲区会上涨，上涨到满之后会丢日志
-func (l *ZLogger)SetWriteFileMode(isAsynToFile bool)  {
+func (l *ZLogger)SetWriteFileMode(isAsynToFile bool) {
 	l.isAsynToFile = isAsynToFile
 }
 
 // 是否允许错误日志额外存一份文件（默认不单独存错误日志）
 // 注意：如果错误日志单独存储，那么每一条错误日志会存两份
-func (l *ZLogger)SetAdditionalErrorFile(has bool)  {
+func (l *ZLogger)SetAdditionalErrorFile(has bool) {
 	l.isHaveErrFile = has
 }
 
@@ -102,14 +104,26 @@ func (l *ZLogger)SetAdditionalErrorFile(has bool)  {
 // 配置示例，如果用户如下配置：
 //  SetLogFile("logfiles/abc")
 // 那么生成的日志文件将如下所示：
-// logfiles/abc-2016-09-08.log
+// logfiles/abc-20160908.log
 // 如果有错误日志生成，将如下所示：
-// logfiles/abc-err-2016-09-08.log
+// logfiles/abc-err-20160908.log
 // 如果设定的文件所在目录不存在，日志模块会在输出日志的时候自动创建该目录
-func (l *ZLogger)SetLogFile(fileName string)  {
+func (l *ZLogger)SetLogFile(fileName string) {
 	l.prefix = fileName
 }
 
+// 设置回调层次(默认为2）
+// 设置回调层次的目的是为了能够正确输出调用日志的位置(文件和行号)
+// 如果对本日志模块进行了进一步的封装，那么为了正确输出调用日志的位置，需要相应设置回调层次
+// 对本模块的封装，每增加一次调用，那么该值需要加1
+func (l *ZLogger)SetCallLevel(level int) {
+	l.callLevel = level
+}
+
+// 设置是否将日志文件按天存储(默认为true)
+func (l *ZLogger)SetFileDaily(yes bool) {
+	l.isFileDaily = yes
+}
 
 // 需要写入文件的节点
 type LogNode struct {
@@ -158,17 +172,21 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 			&l.pErrFile,
 			&l.errFileName,
 			fmt.Sprintln(node.when.Format("15:04:05"), node.msg),
-			"-err",
+			"-error",
 			node.when)
 	}
-
 	return
 }
 
 func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, when time.Time) (err error) {
 
 	// 如果文件名发生变化，需要关闭之前的文件
-	newFileName := fmt.Sprintf("%v%v-%v.log", l.prefix, tag, when.Format("20060102"))
+	var newFileName string
+	if l.isFileDaily {
+		newFileName = fmt.Sprintf("%v%v-%v.log", l.prefix, tag, when.Format("20060102"))
+	} else {
+		newFileName = fmt.Sprintf("%v%v.log", l.prefix, tag)
+	}
 	if newFileName != *fileName && *ppFile != nil {
 		(*ppFile).Close()
 		*ppFile = nil
