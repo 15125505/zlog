@@ -154,14 +154,14 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 		err = l.msg2File(
 			&l.pFile,
 			&l.fileName,
-			fmt.Sprintln(node.when.Format("15:04:05"), LevelColor[(node.level - LevelError) % len(LevelColor)], node.msg, "\033[0m"),
+			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), LevelColor[(node.level - LevelError) % len(LevelColor)], node.msg, "\033[0m"),
 			"",
 			node.when)
 	} else {
 		err = l.msg2File(
 			&l.pFile,
 			&l.fileName,
-			fmt.Sprintln(node.when.Format("15:04:05"), node.msg),
+			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), node.msg),
 			"",
 			node.when)
 	}
@@ -171,7 +171,7 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 		err = l.msg2File(
 			&l.pErrFile,
 			&l.errFileName,
-			fmt.Sprintln(node.when.Format("15:04:05"), node.msg),
+			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), node.msg),
 			"-error",
 			node.when)
 	}
