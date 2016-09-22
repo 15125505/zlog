@@ -73,6 +73,11 @@ func main() {
 ```
 
 ### 4、日志方面高级功能
+* 日志文件中默认只记录`LevelInformational`以及更高级别的日志到文件中，`Debug`级别默认不记录到文件中，如果要修改默认行为，可以进行类似下面的设置：
+``` go
+log.Log.SetLogLevel(log.LevelDebug)     // 设置所有的日志都记录到文件
+log.Log.SetLogLevel(log.LevelNotice)    // 设置只有Notice及以上级别的日志到文件
+```
 * 日志文件默认按照日期命名，如果不希望按照日期分文件，那么进行如下设置即可（以默认的全局日志对象为例）：
 ``` go
 log.Log.SetFileDaily(false)

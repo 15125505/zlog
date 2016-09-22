@@ -81,6 +81,24 @@ func NewLogger() (l *ZLogger) {
 }
 
 
+// 日志文件名设置(默认为空)
+// 如果日志文件名为空，那么不会输出日志文件
+// 配置示例，如果用户如下配置：
+//  SetLogFile("logfiles/abc")
+// 那么生成的日志文件将如下所示：
+// logfiles/abc-20160908.log
+// 如果有错误日志生成，将如下所示：
+// logfiles/abc-err-20160908.log
+// 如果设定的文件所在目录不存在，日志模块会在输出日志的时候自动创建该目录
+func (l *ZLogger)SetLogFile(fileName string) {
+	l.prefix = fileName
+}
+
+// 设置记录到文件的日志等级（默认只记录info以及以上级别的日志到文件中）
+func (l *ZLogger)SetLogLevel(level int) {
+	l.level = level
+}
+
 // 是否允许控制台输出（默认输出到控制台）
 func (l *ZLogger)SetConsoleOut(enable bool) {
 	l.isConsoleOut = enable
@@ -105,19 +123,6 @@ func (l *ZLogger)SetWriteFileMode(isAsynToFile bool) {
 // 注意：如果错误日志单独存储，那么每一条错误日志会存两份
 func (l *ZLogger)SetAdditionalErrorFile(has bool) {
 	l.isHaveErrFile = has
-}
-
-// 日志文件名设置(默认为空)
-// 如果日志文件名为空，那么不会输出日志文件
-// 配置示例，如果用户如下配置：
-//  SetLogFile("logfiles/abc")
-// 那么生成的日志文件将如下所示：
-// logfiles/abc-20160908.log
-// 如果有错误日志生成，将如下所示：
-// logfiles/abc-err-20160908.log
-// 如果设定的文件所在目录不存在，日志模块会在输出日志的时候自动创建该目录
-func (l *ZLogger)SetLogFile(fileName string) {
-	l.prefix = fileName
 }
 
 // 设置回调层次(默认为2）
