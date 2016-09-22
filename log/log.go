@@ -1,3 +1,10 @@
+/**
+* 作    者: 雾影
+* 创建日期: 2016/9/22
+* 功能说明：基于go语言的日志模块
+* 当前版本：1.0.0
+*/
+
 package log
 
 import (
@@ -19,6 +26,7 @@ const (
 )
 
 const maxChanCount = 10000   // 缓冲区最多存放10000条数据
+
 var LevelColor []string     // 颜色列表
 
 // 初始化函数
@@ -237,7 +245,7 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 
 	// 输出到控制台
 	if l.isConsoleOut {
-		fmt.Println(now.Format("01-02 15:04:05"), LevelColor[(logLevel - LevelError) % len(LevelColor)], txt, "\033[0m")
+		fmt.Println(now.Format("2006-01-02 15:04:05"), LevelColor[(logLevel - LevelError) % len(LevelColor)], txt, "\033[0m")
 	}
 
 	// 大于指定等级或者日志文件名为空，不输出到文件
