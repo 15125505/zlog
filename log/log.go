@@ -162,7 +162,7 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 		err = l.msg2File(
 			&l.pFile,
 			&l.fileName,
-			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), LevelColor[(node.level - LevelError) % len(LevelColor)], node.msg, "\033[0m"),
+			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), LevelColor[(node.level - LevelError) % len(LevelColor)] + node.msg + "\033[0m"),
 			"",
 			node.when)
 	} else {
@@ -237,7 +237,7 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 	// 找出调用所在的文件和代码行
 	_, file, line, ok := runtime.Caller(l.callLevel)
 	if !ok {
-		file = "???"
+		file = "N/A"
 		line = 0
 	}
 	_, filename := path.Split(file)
@@ -245,7 +245,7 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 
 	// 输出到控制台
 	if l.isConsoleOut {
-		fmt.Println(now.Format("2006-01-02 15:04:05"), LevelColor[(logLevel - LevelError) % len(LevelColor)], txt, "\033[0m")
+		fmt.Println(now.Format("2006-01-02 15:04:05"), LevelColor[(logLevel - LevelError) % len(LevelColor)] + txt + "\033[0m")
 	}
 
 	// 大于指定等级或者日志文件名为空，不输出到文件
@@ -264,31 +264,31 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 
 // 错误级别日志
 func (l *ZLogger)Error(v ...interface{}) {
-	msg := fmt.Sprintf("[E] " + l.generateFmtStr(len(v)), v...)
+	msg := fmt.Sprintf("[E] " + l.formatMsg(len(v)), v...)
 	l.msgOut(LevelError, msg)
 }
 
 // 提醒级别日志
 func (l *ZLogger)Notice(v ...interface{}) {
-	msg := fmt.Sprintf("[N] " + l.generateFmtStr(len(v)), v...)
+	msg := fmt.Sprintf("[N] " + l.formatMsg(len(v)), v...)
 	l.msgOut(LevelNotice, msg)
 }
 
 // 信息级别日志
 func (l *ZLogger)Informational(v ...interface{}) {
-	msg := fmt.Sprintf("[I] " + l.generateFmtStr(len(v)), v...)
+	msg := fmt.Sprintf("[I] " + l.formatMsg(len(v)), v...)
 	l.msgOut(LevelInformational, msg)
 }
 
 // 信息级别日志
 func (l *ZLogger)Info(v ...interface{}) {
-	msg := fmt.Sprintf("[I] " + l.generateFmtStr(len(v)), v...)
+	msg := fmt.Sprintf("[I] " + l.formatMsg(len(v)), v...)
 	l.msgOut(LevelInformational, msg)
 }
 
 // 调试级别日志
 func (l *ZLogger)Debug(v ...interface{}) {
-	msg := fmt.Sprintf("[D] " + l.generateFmtStr(len(v)), v...)
+	msg := fmt.Sprintf("[D] " + l.formatMsg(len(v)), v...)
 	l.msgOut(LevelDebug, msg)
 }
 
@@ -312,6 +312,7 @@ func Error(v ...interface{}) {
 	Log.Error(v ...)
 }
 
-func (l *ZLogger)generateFmtStr(n int) string {
+// 生成msg字符串
+func (l *ZLogger)formatMsg(n int) string {
 	return strings.Repeat("%v ", n)
 }
