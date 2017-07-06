@@ -1,0 +1,11 @@
+lastupdate.tmp
+*.exe
+*.log
+routers/comments*controllers.go
+log/
+logs/
+tmp/
+conf/dbConfig.json
+conf/monitorConfig.json
+.idea/
+*.gob

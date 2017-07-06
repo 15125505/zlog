@@ -16,70 +16,118 @@ import (
 	"path"
 	"strconv"
 	"path/filepath"
+	"syscall"
+	"unsafe"
 )
 
 const (
-	LevelError = iota
+	LevelError         = iota
 	LevelNotice
 	LevelInformational
 	LevelDebug
 )
 
-const maxChanCount = 10000   // 缓冲区最多存放10000条数据
+const maxChanCount = 10000 // 缓冲区最多存放10000条数据
 
-var LevelColor []string     // 颜色列表
+var LevelColor []string    // 颜色列表
+var WinLevelColor []uint16 // windows下的颜色列表
+
+// 用于windows上设置控制台颜色的相关数据
+var (
+	kernel32                       = syscall.NewLazyDLL("kernel32.dll")
+	procSetConsoleTextAttribute    = kernel32.NewProc("SetConsoleTextAttribute")
+	procGetConsoleScreenBufferInfo = kernel32.NewProc("GetConsoleScreenBufferInfo")
+	isWinConsole                   = false
+)
+
+// windows下的颜色
+const (
+	blue      = uint16(1)
+	green     = uint16(2)
+	red       = uint16(4)
+	intensity = uint16(8)
+)
 
 // 初始化函数
 func init() {
+
 	// 缺省生成一个仅仅在控制台输出的日志模块
 	Log = NewLogger()
 	Log.SetCallLevel(3)
 
 	// 颜色列表
 	LevelColor = []string{
-		"\033[31m",
-		"\033[33m",
-		"\033[32m",
-		"\033[37m",
+		"\033[31m", // 红色
+		"\033[33m", // 黄色
+		"\033[32m", // 绿色
+		"\033[37m", // 白色
 	}
+
+	// windows下的颜色列表
+	WinLevelColor = []uint16{
+		red | intensity,
+		red | green,
+		green,
+		red | green | blue,
+	}
+
+	isWinConsole = isInwinConsole(uintptr(syscall.Stdout))
+	fmt.Println("当前模式：", isWinConsole)
+}
+
+// 获取当前是否在windows控制台
+func isInwinConsole(hConsoleOutput uintptr) (isInWinConsole bool) {
+	if nil == procGetConsoleScreenBufferInfo {
+		return false
+	}
+	csbi := struct {
+		DwSize              int32
+		DwCursorPosition    int32
+		WAttributes         uint16
+		SrWindow            [4]int16
+		DwMaximumWindowSize int32
+	}{}
+	ret, _, _ := procGetConsoleScreenBufferInfo.Call(
+		hConsoleOutput,
+		uintptr(unsafe.Pointer(&csbi)))
+	return ret != 0
 }
 
 // 日志模块
 type ZLogger struct {
-	prefix          string       // 用户设定的名称
-	level           int          // 记入日志文件的等级（小于等于该等级的才计入日志文件）
-	isAsynToFile    bool         // 写入文件的方式（true为异步写入）
-	isFileWithColor bool         // 日志文件是否写入颜色信息
-	isConsoleOut    bool         // 日志是否输出到控制台
-	isHaveErrFile   bool         // 日志是否加入单独的错误日志文件
-	isFileDaily     bool         // 日志文件是否按日期命名
+	prefix          string // 用户设定的名称
+	level           int    // 记入日志文件的等级（小于等于该等级的才计入日志文件）
+	isAsynToFile    bool   // 写入文件的方式（true为异步写入）
+	isFileWithColor bool   // 日志文件是否写入颜色信息
+	isConsoleOut    bool   // 日志是否输出到控制台
+	isHaveErrFile   bool   // 日志是否加入单独的错误日志文件
+	isFileDaily     bool   // 日志文件是否按日期命名
 
-	pFile           *os.File     // 当前日志文件句柄
-	fileName        string       // 当前使用的文件名
+	pFile    *os.File // 当前日志文件句柄
+	fileName string   // 当前使用的文件名
 
-	pErrFile        *os.File     // 当前错误日志文件句柄
-	errFileName     string       // 当前使用的错误日志文件名
+	pErrFile    *os.File // 当前错误日志文件句柄
+	errFileName string   // 当前使用的错误日志文件名
 
-	toWrite         chan LogNode // 需要写入文件的日志
-	callLevel       int          // 调用级别
+	toWrite   chan LogNode // 需要写入文件的日志
+	callLevel int          // 调用级别
 }
 
 // 创建一个日志模块
 func NewLogger() (l *ZLogger) {
 	l = &ZLogger{
-		isAsynToFile:false,
-		isFileWithColor:false,
-		isConsoleOut:true,
-		isHaveErrFile:false,
-		isFileDaily:true,
-		callLevel:2,
-		level:LevelInformational,
-		toWrite:make(chan LogNode, maxChanCount),
+		isAsynToFile:    false,
+		isFileWithColor: false,
+		isConsoleOut:    true,
+		isHaveErrFile:   false,
+		isFileDaily:     true,
+		callLevel:       2,
+		level:           LevelInformational,
+		toWrite:         make(chan LogNode, maxChanCount),
 	}
 	go l.run()
 	return
 }
-
 
 // 日志文件名设置(默认为空)
 // 如果日志文件名为空，那么不会输出日志文件
@@ -90,22 +138,22 @@ func NewLogger() (l *ZLogger) {
 // 如果有错误日志生成，将如下所示：
 // logfiles/abc-err-20160908.log
 // 如果设定的文件所在目录不存在，日志模块会在输出日志的时候自动创建该目录
-func (l *ZLogger)SetLogFile(fileName string) {
+func (l *ZLogger) SetLogFile(fileName string) {
 	l.prefix = fileName
 }
 
 // 设置记录到文件的日志等级（默认只记录info以及以上级别的日志到文件中）
-func (l *ZLogger)SetLogLevel(level int) {
+func (l *ZLogger) SetLogLevel(level int) {
 	l.level = level
 }
 
 // 是否允许控制台输出（默认输出到控制台）
-func (l *ZLogger)SetConsoleOut(enable bool) {
+func (l *ZLogger) SetConsoleOut(enable bool) {
 	l.isConsoleOut = enable
 }
 
 // 是否允许文件中带颜色信息（默认文件输出不带颜色）
-func (l *ZLogger)SetFileColor(enable bool) {
+func (l *ZLogger) SetFileColor(enable bool) {
 	l.isFileWithColor = enable
 }
 
@@ -115,13 +163,13 @@ func (l *ZLogger)SetFileColor(enable bool) {
 // 异步的优点：可以瞬间输出更多的日志文件，而且不会阻塞调用者
 // 异步的缺点：如果软件crash掉，可能来不及将最后的几条日志写入文件
 // 异步的另外一个缺点，是如果输入日志比写入文件的速度快，那么缓冲区会上涨，上涨到满之后会丢日志
-func (l *ZLogger)SetWriteFileMode(isAsynToFile bool) {
+func (l *ZLogger) SetWriteFileMode(isAsynToFile bool) {
 	l.isAsynToFile = isAsynToFile
 }
 
 // 是否允许错误日志额外存一份文件（默认不单独存错误日志）
 // 注意：如果错误日志单独存储，那么每一条错误日志会存两份
-func (l *ZLogger)SetAdditionalErrorFile(has bool) {
+func (l *ZLogger) SetAdditionalErrorFile(has bool) {
 	l.isHaveErrFile = has
 }
 
@@ -129,12 +177,12 @@ func (l *ZLogger)SetAdditionalErrorFile(has bool) {
 // 设置回调层次的目的是为了能够正确输出调用日志的位置(文件和行号)
 // 如果对本日志模块进行了进一步的封装，那么为了正确输出调用日志的位置，需要相应设置回调层次
 // 对本模块的封装，每增加一次调用，那么该值需要加1
-func (l *ZLogger)SetCallLevel(level int) {
+func (l *ZLogger) SetCallLevel(level int) {
 	l.callLevel = level
 }
 
 // 设置是否将日志文件按天存储(默认为true)
-func (l *ZLogger)SetFileDaily(yes bool) {
+func (l *ZLogger) SetFileDaily(yes bool) {
 	l.isFileDaily = yes
 }
 
@@ -167,7 +215,7 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 		err = l.msg2File(
 			&l.pFile,
 			&l.fileName,
-			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), LevelColor[(node.level - LevelError) % len(LevelColor)] + node.msg + "\033[0m"),
+			fmt.Sprintln(node.when.Format("2006-01-02 15:04:05"), LevelColor[(node.level-LevelError)%len(LevelColor)]+node.msg+"\033[0m"),
 			"",
 			node.when)
 	} else {
@@ -191,7 +239,7 @@ func (l *ZLogger) msgToFile(node LogNode) (err error) {
 	return
 }
 
-func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, when time.Time) (err error) {
+func (l *ZLogger) msg2File(ppFile **os.File, fileName *string, txt, tag string, when time.Time) (err error) {
 
 	// 如果文件名发生变化，需要关闭之前的文件
 	var newFileName string
@@ -214,7 +262,7 @@ func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, w
 		}
 
 		// 打开文件
-		f, err := os.OpenFile(newFileName, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0664)
+		f, err := os.OpenFile(newFileName, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0664)
 		if err != nil {
 			fmt.Println("创建日志文件失败！", newFileName)
 			return err
@@ -234,7 +282,7 @@ func (l *ZLogger)msg2File(ppFile **os.File, fileName *string, txt, tag string, w
 }
 
 // 缺省的日志输出
-var Log  *ZLogger
+var Log *ZLogger
 
 func (l *ZLogger) msgOut(logLevel int, txt string) {
 	now := time.Now()
@@ -250,7 +298,29 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 
 	// 输出到控制台
 	if l.isConsoleOut {
-		fmt.Println(now.Format("2006-01-02 15:04:05"), LevelColor[(logLevel - LevelError) % len(LevelColor)] + txt + "\033[0m")
+
+		// 输出日期
+		fmt.Print(now.Format("2006-01-02 15:04:05"))
+
+		// 设置颜色
+		if !isWinConsole {
+			fmt.Print(LevelColor[(logLevel-LevelError)%len(LevelColor)])
+		} else {
+			procSetConsoleTextAttribute.Call(uintptr(syscall.Stdout), uintptr(WinLevelColor[(logLevel-LevelError)%len(WinLevelColor)]))
+		}
+
+		// 输出内容
+		fmt.Print(txt)
+
+		// 结束颜色设置
+		if !isWinConsole {
+			fmt.Print("\033[0m")
+		} else {
+			procSetConsoleTextAttribute.Call(uintptr(syscall.Stdout), uintptr(red|green|blue))
+		}
+
+		// 输出换行
+		fmt.Print("\n")
 	}
 
 	// 大于指定等级或者日志文件名为空，不输出到文件
@@ -259,41 +329,40 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 	}
 	if l.isAsynToFile {
 		if len(l.toWrite) < maxChanCount {
-			l.toWrite <- LogNode{when:now, msg:txt, level:logLevel}
+			l.toWrite <- LogNode{when: now, msg: txt, level: logLevel}
 		}
 	} else {
-		l.msgToFile(LogNode{when:now, msg:txt, level:logLevel})
+		l.msgToFile(LogNode{when: now, msg: txt, level: logLevel})
 	}
 }
 
-
 // 错误级别日志
-func (l *ZLogger)Error(v ...interface{}) {
-	msg := fmt.Sprintf("[E] " + l.formatMsg(len(v)), v...)
+func (l *ZLogger) Error(v ...interface{}) {
+	msg := fmt.Sprintf("[E] "+l.formatMsg(len(v)), v...)
 	l.msgOut(LevelError, msg)
 }
 
 // 提醒级别日志
-func (l *ZLogger)Notice(v ...interface{}) {
-	msg := fmt.Sprintf("[N] " + l.formatMsg(len(v)), v...)
+func (l *ZLogger) Notice(v ...interface{}) {
+	msg := fmt.Sprintf("[N] "+l.formatMsg(len(v)), v...)
 	l.msgOut(LevelNotice, msg)
 }
 
 // 信息级别日志
-func (l *ZLogger)Informational(v ...interface{}) {
-	msg := fmt.Sprintf("[I] " + l.formatMsg(len(v)), v...)
+func (l *ZLogger) Informational(v ...interface{}) {
+	msg := fmt.Sprintf("[I] "+l.formatMsg(len(v)), v...)
 	l.msgOut(LevelInformational, msg)
 }
 
 // 信息级别日志
-func (l *ZLogger)Info(v ...interface{}) {
-	msg := fmt.Sprintf("[I] " + l.formatMsg(len(v)), v...)
+func (l *ZLogger) Info(v ...interface{}) {
+	msg := fmt.Sprintf("[I] "+l.formatMsg(len(v)), v...)
 	l.msgOut(LevelInformational, msg)
 }
 
 // 调试级别日志
-func (l *ZLogger)Debug(v ...interface{}) {
-	msg := fmt.Sprintf("[D] " + l.formatMsg(len(v)), v...)
+func (l *ZLogger) Debug(v ...interface{}) {
+	msg := fmt.Sprintf("[D] "+l.formatMsg(len(v)), v...)
 	l.msgOut(LevelDebug, msg)
 }
 
@@ -318,6 +387,6 @@ func Error(v ...interface{}) {
 }
 
 // 生成msg字符串
-func (l *ZLogger)formatMsg(n int) string {
+func (l *ZLogger) formatMsg(n int) string {
 	return strings.Repeat("%v ", n)
 }
