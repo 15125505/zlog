@@ -2,7 +2,6 @@ lastupdate.tmp
 *.exe
 *.log
 routers/comments*controllers.go
-log/
 logs/
 tmp/
 conf/dbConfig.json

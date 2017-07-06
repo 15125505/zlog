@@ -16,8 +16,6 @@ import (
 	"path"
 	"strconv"
 	"path/filepath"
-	"syscall"
-	"unsafe"
 )
 
 const (
@@ -29,24 +27,7 @@ const (
 
 const maxChanCount = 10000 // 缓冲区最多存放10000条数据
 
-var LevelColor []string    // 颜色列表
-var WinLevelColor []uint16 // windows下的颜色列表
-
-// 用于windows上设置控制台颜色的相关数据
-var (
-	kernel32                       = syscall.NewLazyDLL("kernel32.dll")
-	procSetConsoleTextAttribute    = kernel32.NewProc("SetConsoleTextAttribute")
-	procGetConsoleScreenBufferInfo = kernel32.NewProc("GetConsoleScreenBufferInfo")
-	isWinConsole                   = false
-)
-
-// windows下的颜色
-const (
-	blue      = uint16(1)
-	green     = uint16(2)
-	red       = uint16(4)
-	intensity = uint16(8)
-)
+var LevelColor []string // 颜色列表
 
 // 初始化函数
 func init() {
@@ -63,34 +44,6 @@ func init() {
 		"\033[37m", // 白色
 	}
 
-	// windows下的颜色列表
-	WinLevelColor = []uint16{
-		red | intensity,
-		red | green,
-		green,
-		red | green | blue,
-	}
-
-	isWinConsole = isInwinConsole(uintptr(syscall.Stdout))
-	fmt.Println("当前模式：", isWinConsole)
-}
-
-// 获取当前是否在windows控制台
-func isInwinConsole(hConsoleOutput uintptr) (isInWinConsole bool) {
-	if nil == procGetConsoleScreenBufferInfo {
-		return false
-	}
-	csbi := struct {
-		DwSize              int32
-		DwCursorPosition    int32
-		WAttributes         uint16
-		SrWindow            [4]int16
-		DwMaximumWindowSize int32
-	}{}
-	ret, _, _ := procGetConsoleScreenBufferInfo.Call(
-		hConsoleOutput,
-		uintptr(unsafe.Pointer(&csbi)))
-	return ret != 0
 }
 
 // 日志模块
@@ -303,21 +256,13 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 		fmt.Print(now.Format("2006-01-02 15:04:05"))
 
 		// 设置颜色
-		if !isWinConsole {
-			fmt.Print(LevelColor[(logLevel-LevelError)%len(LevelColor)])
-		} else {
-			procSetConsoleTextAttribute.Call(uintptr(syscall.Stdout), uintptr(WinLevelColor[(logLevel-LevelError)%len(WinLevelColor)]))
-		}
+		ColorBegin(logLevel)
 
 		// 输出内容
 		fmt.Print(txt)
 
 		// 结束颜色设置
-		if !isWinConsole {
-			fmt.Print("\033[0m")
-		} else {
-			procSetConsoleTextAttribute.Call(uintptr(syscall.Stdout), uintptr(red|green|blue))
-		}
+		ColorEnd()
 
 		// 输出换行
 		fmt.Print("\n")
