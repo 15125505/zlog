@@ -247,7 +247,7 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 		line = 0
 	}
 	_, filename := path.Split(file)
-	txt = "[" + filename + ":" + strconv.FormatInt(int64(line), 10) + "]" + txt
+	txt = " " + filename + ":" + strconv.FormatInt(int64(line), 10) + " " + txt
 
 	// 输出到控制台
 	if l.isConsoleOut {
