@@ -3,23 +3,23 @@
 * 创建日期: 2016/9/22
 * 功能说明：基于go语言的日志模块
 * 当前版本：1.0.0
-*/
+ */
 
 package log
 
 import (
 	"fmt"
-	"strings"
 	"os"
-	"time"
-	"runtime"
 	"path"
-	"strconv"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
-	LevelError         = iota
+	LevelError = iota
 	LevelNotice
 	LevelInformational
 	LevelDebug
@@ -48,13 +48,14 @@ func init() {
 
 // 日志模块
 type ZLogger struct {
-	prefix          string // 用户设定的名称
-	level           int    // 记入日志文件的等级（小于等于该等级的才计入日志文件）
-	isAsynToFile    bool   // 写入文件的方式（true为异步写入）
-	isFileWithColor bool   // 日志文件是否写入颜色信息
-	isConsoleOut    bool   // 日志是否输出到控制台
-	isHaveErrFile   bool   // 日志是否加入单独的错误日志文件
-	isFileDaily     bool   // 日志文件是否按日期命名
+	prefix             string // 用户设定的名称
+	level              int    // 记入日志文件的等级（小于等于该等级的才计入日志文件）
+	isAsynToFile       bool   // 写入文件的方式（true为异步写入）
+	isFileWithColor    bool   // 日志文件是否写入颜色信息
+	isConsoleOut       bool   // 日志是否输出到控制台
+	isConsoleWithColor bool   // 控制台输出是会否带颜色信息
+	isHaveErrFile      bool   // 日志是否加入单独的错误日志文件
+	isFileDaily        bool   // 日志文件是否按日期命名
 
 	pFile    *os.File // 当前日志文件句柄
 	fileName string   // 当前使用的文件名
@@ -69,14 +70,15 @@ type ZLogger struct {
 // 创建一个日志模块
 func NewLogger() (l *ZLogger) {
 	l = &ZLogger{
-		isAsynToFile:    false,
-		isFileWithColor: false,
-		isConsoleOut:    true,
-		isHaveErrFile:   false,
-		isFileDaily:     true,
-		callLevel:       2,
-		level:           LevelInformational,
-		toWrite:         make(chan LogNode, maxChanCount),
+		isAsynToFile:       false,
+		isFileWithColor:    false,
+		isConsoleOut:       true,
+		isConsoleWithColor: true,
+		isHaveErrFile:      false,
+		isFileDaily:        true,
+		callLevel:          2,
+		level:              LevelInformational,
+		toWrite:            make(chan LogNode, maxChanCount),
 	}
 	go l.run()
 	return
@@ -103,6 +105,11 @@ func (l *ZLogger) SetLogLevel(level int) {
 // 是否允许控制台输出（默认输出到控制台）
 func (l *ZLogger) SetConsoleOut(enable bool) {
 	l.isConsoleOut = enable
+}
+
+// 是否允许控制台带颜色信息，默认带颜色
+func (l *ZLogger) SetConsoleColor(enable bool) {
+	l.isConsoleWithColor = enable
 }
 
 // 是否允许文件中带颜色信息（默认文件输出不带颜色）
@@ -252,20 +259,24 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 	// 输出到控制台
 	if l.isConsoleOut {
 
-		// 输出日期
-		fmt.Print(now.Format("2006-01-02 15:04:05"))
+		if l.isConsoleWithColor {
+			// 输出日期
+			fmt.Print(now.Format("2006-01-02 15:04:05"))
 
-		// 设置颜色
-		ColorBegin(logLevel)
+			// 设置颜色
+			ColorBegin(logLevel)
 
-		// 输出内容
-		fmt.Print(txt)
+			// 输出内容
+			fmt.Print(txt)
 
-		// 结束颜色设置
-		ColorEnd()
+			// 结束颜色设置
+			ColorEnd()
 
-		// 输出换行
-		fmt.Print("\n")
+			// 输出换行
+			fmt.Print("\n")
+		} else {
+			fmt.Printf("%s %s\n", now.Format("2006-01-02 15:04:05"), txt)
+		}
 	}
 
 	// 大于指定等级或者日志文件名为空，不输出到文件
@@ -313,22 +324,22 @@ func (l *ZLogger) Debug(v ...interface{}) {
 
 // 调试级别日志
 func Debug(v ...interface{}) {
-	Log.Debug(v ...)
+	Log.Debug(v...)
 }
 
 // 信息级别日志
 func Info(v ...interface{}) {
-	Log.Info(v ...)
+	Log.Info(v...)
 }
 
 // 提醒级别日志
 func Notice(v ...interface{}) {
-	Log.Notice(v ...)
+	Log.Notice(v...)
 }
 
 // 错误级别日志
 func Error(v ...interface{}) {
-	Log.Error(v ...)
+	Log.Error(v...)
 }
 
 // 生成msg字符串

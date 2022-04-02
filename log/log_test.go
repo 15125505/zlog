@@ -1,11 +1,10 @@
 package log
 
 import (
+	"fmt"
 	"testing"
 	"time"
-	"fmt"
 )
-
 
 func TestMsgToFile(t *testing.T) {
 	l := NewLogger()
@@ -53,5 +52,21 @@ func TestOut(t *testing.T) {
 	time.Sleep(time.Second)
 
 	fmt.Println("检查一下tmp目录下对应的color文件")
+
+}
+
+func testLog() {
+	Notice("控制台带不带颜色")
+}
+
+func TestMultiLog(t *testing.T) {
+
+	Log.SetConsoleColor(false)
+
+	for i:=0;i<10;i++ {
+		go testLog()
+	}
+
+	time.Sleep(time.Second)
 
 }
