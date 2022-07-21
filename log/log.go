@@ -3,23 +3,24 @@
 * 创建日期: 2016/9/22
 * 功能说明：基于go语言的日志模块
 * 当前版本：1.0.0
-*/
+ */
 
 package log
 
 import (
 	"fmt"
-	"strings"
 	"os"
-	"time"
-	"runtime"
 	"path"
-	"strconv"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
-	LevelError         = iota
+	LevelError = iota
 	LevelNotice
 	LevelInformational
 	LevelDebug
@@ -46,11 +47,11 @@ func init() {
 
 }
 
-// 日志模块
+// ZLogger 日志模块
 type ZLogger struct {
 	prefix          string // 用户设定的名称
 	level           int    // 记入日志文件的等级（小于等于该等级的才计入日志文件）
-	isAsynToFile    bool   // 写入文件的方式（true为异步写入）
+	isAsyncToFile   bool   // 写入文件的方式（true为异步写入）
 	isFileWithColor bool   // 日志文件是否写入颜色信息
 	isConsoleOut    bool   // 日志是否输出到控制台
 	isHaveErrFile   bool   // 日志是否加入单独的错误日志文件
@@ -64,12 +65,14 @@ type ZLogger struct {
 
 	toWrite   chan LogNode // 需要写入文件的日志
 	callLevel int          // 调用级别
+
+	lock sync.RWMutex // 防止多个协程写入屏幕日志的时候，会出错乱
 }
 
-// 创建一个日志模块
+// NewLogger 创建一个日志模块
 func NewLogger() (l *ZLogger) {
 	l = &ZLogger{
-		isAsynToFile:    false,
+		isAsyncToFile:   false,
 		isFileWithColor: false,
 		isConsoleOut:    true,
 		isHaveErrFile:   false,
@@ -77,12 +80,13 @@ func NewLogger() (l *ZLogger) {
 		callLevel:       2,
 		level:           LevelInformational,
 		toWrite:         make(chan LogNode, maxChanCount),
+		lock:            sync.RWMutex{},
 	}
 	go l.run()
 	return
 }
 
-// 日志文件名设置(默认为空)
+// SetLogFile 日志文件名设置(默认为空)
 // 如果日志文件名为空，那么不会输出日志文件
 // 配置示例，如果用户如下配置：
 //  SetLogFile("logfiles/abc")
@@ -95,38 +99,38 @@ func (l *ZLogger) SetLogFile(fileName string) {
 	l.prefix = fileName
 }
 
-// 设置记录到文件的日志等级（默认只记录info以及以上级别的日志到文件中）
+// SetLogLevel 设置记录到文件的日志等级（默认只记录info以及以上级别的日志到文件中）
 func (l *ZLogger) SetLogLevel(level int) {
 	l.level = level
 }
 
-// 是否允许控制台输出（默认输出到控制台）
+// SetConsoleOut 是否允许控制台输出（默认输出到控制台）
 func (l *ZLogger) SetConsoleOut(enable bool) {
 	l.isConsoleOut = enable
 }
 
-// 是否允许文件中带颜色信息（默认文件输出不带颜色）
+// SetFileColor 是否允许文件中带颜色信息（默认文件输出不带颜色）
 func (l *ZLogger) SetFileColor(enable bool) {
 	l.isFileWithColor = enable
 }
 
-// 配置写入日志文件的方式：同步还是异步(默认为同步)
+// SetWriteFileMode 配置写入日志文件的方式：同步还是异步(默认为同步)
 // 同步，意味着实时写入文件
 // 异步，则将日志加入缓冲区，由专门的协程写入文件
 // 异步的优点：可以瞬间输出更多的日志文件，而且不会阻塞调用者
 // 异步的缺点：如果软件crash掉，可能来不及将最后的几条日志写入文件
 // 异步的另外一个缺点，是如果输入日志比写入文件的速度快，那么缓冲区会上涨，上涨到满之后会丢日志
 func (l *ZLogger) SetWriteFileMode(isAsynToFile bool) {
-	l.isAsynToFile = isAsynToFile
+	l.isAsyncToFile = isAsynToFile
 }
 
-// 是否允许错误日志额外存一份文件（默认不单独存错误日志）
+// SetAdditionalErrorFile 是否允许错误日志额外存一份文件（默认不单独存错误日志）
 // 注意：如果错误日志单独存储，那么每一条错误日志会存两份
 func (l *ZLogger) SetAdditionalErrorFile(has bool) {
 	l.isHaveErrFile = has
 }
 
-// 设置回调层次(默认为2）
+// SetCallLevel 设置回调层次(默认为2）
 // 设置回调层次的目的是为了能够正确输出调用日志的位置(文件和行号)
 // 如果对本日志模块进行了进一步的封装，那么为了正确输出调用日志的位置，需要相应设置回调层次
 // 对本模块的封装，每增加一次调用，那么该值需要加1
@@ -134,12 +138,12 @@ func (l *ZLogger) SetCallLevel(level int) {
 	l.callLevel = level
 }
 
-// 设置是否将日志文件按天存储(默认为true)
+// SetFileDaily 设置是否将日志文件按天存储(默认为true)
 func (l *ZLogger) SetFileDaily(yes bool) {
 	l.isFileDaily = yes
 }
 
-// 需要写入文件的节点
+// LogNode 需要写入文件的节点
 type LogNode struct {
 	when  time.Time
 	msg   string
@@ -234,7 +238,7 @@ func (l *ZLogger) msg2File(ppFile **os.File, fileName *string, txt, tag string, 
 	return
 }
 
-// 缺省的日志输出
+// Log 缺省的日志输出
 var Log *ZLogger
 
 func (l *ZLogger) msgOut(logLevel int, txt string) {
@@ -252,6 +256,8 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 	// 输出到控制台
 	if l.isConsoleOut {
 
+		l.lock.Lock()
+
 		// 输出日期
 		fmt.Print(now.Format("2006-01-02 15:04:05"))
 
@@ -266,13 +272,15 @@ func (l *ZLogger) msgOut(logLevel int, txt string) {
 
 		// 输出换行
 		fmt.Print("\n")
+
+		l.lock.Unlock()
 	}
 
 	// 大于指定等级或者日志文件名为空，不输出到文件
 	if logLevel > l.level || l.prefix == "" {
 		return
 	}
-	if l.isAsynToFile {
+	if l.isAsyncToFile {
 		if len(l.toWrite) < maxChanCount {
 			l.toWrite <- LogNode{when: now, msg: txt, level: logLevel}
 		}
@@ -313,22 +321,22 @@ func (l *ZLogger) Debug(v ...interface{}) {
 
 // 调试级别日志
 func Debug(v ...interface{}) {
-	Log.Debug(v ...)
+	Log.Debug(v...)
 }
 
 // 信息级别日志
 func Info(v ...interface{}) {
-	Log.Info(v ...)
+	Log.Info(v...)
 }
 
 // 提醒级别日志
 func Notice(v ...interface{}) {
-	Log.Notice(v ...)
+	Log.Notice(v...)
 }
 
 // 错误级别日志
 func Error(v ...interface{}) {
-	Log.Error(v ...)
+	Log.Error(v...)
 }
 
 // 生成msg字符串
